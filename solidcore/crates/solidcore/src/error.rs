@@ -28,6 +28,7 @@
 //! | [`ErrorKind`], [`SolidError::kind`] | none: solidcore's stable error codes (#2615) |
 //! | [`offset::OffsetFailure`]   | none: the offset subsystem's refusals (#2615)    |
 //! | [`nurbs::NurbsFailure`]     | `NL_*_ERR` numbers, in solidcore's terms         |
+//! | [`sweep::SweepFailure`]     | none: why a sweep or loft refuses (#3140)         |
 //!
 //! NLib routines (`NL_*.cpp`) report failure by returning an error flag and storing an
 //! error number in the process-wide `NL_ERROR` record; solidcore returns
@@ -75,6 +76,7 @@
 
 pub mod nurbs;
 pub mod offset;
+pub mod sweep;
 
 use crate::topology::{
     BrepId, EdgeId, EdgeuseId, FaceId, FaceuseId, LoopId, LoopuseId, RegionId, ShellId, VertexId,
@@ -709,6 +711,8 @@ pub enum Reason {
     Offset(offset::OffsetFailure),
     /// A NURBS routine failed.
     Nurbs(nurbs::NurbsFailure),
+    /// A sweep or loft refused (#3140).
+    Sweep(sweep::SweepFailure),
 }
 
 impl Reason {
@@ -716,7 +720,7 @@ impl Reason {
     #[must_use]
     pub fn entity(&self) -> Option<EntityRef> {
         match self {
-            Self::Failed(_) | Self::Nurbs(_) => None,
+            Self::Failed(_) | Self::Nurbs(_) | Self::Sweep(_) => None,
             Self::Offset(o) => o.entity(),
         }
     }
@@ -728,6 +732,7 @@ impl Reason {
             Self::Failed(_) => SM_ERR,
             Self::Offset(o) => o.comparison_status(),
             Self::Nurbs(_) => nurbs::NurbsFailure::COMPARISON_STATUS,
+            Self::Sweep(w) => w.comparison_status(),
         }
     }
 
@@ -738,6 +743,7 @@ impl Reason {
             Self::Failed(_) => ErrorKind::of_status(status),
             Self::Offset(o) => o.kind(),
             Self::Nurbs(n) => n.kind(),
+            Self::Sweep(w) => w.kind(),
         }
     }
 }
@@ -748,6 +754,7 @@ impl core::fmt::Display for Reason {
             Self::Failed(what) => f.write_str(what),
             Self::Offset(o) => o.fmt(f),
             Self::Nurbs(n) => n.fmt(f),
+            Self::Sweep(w) => w.fmt(f),
         }
     }
 }
@@ -755,6 +762,12 @@ impl core::fmt::Display for Reason {
 impl From<nurbs::NurbsFailure> for Reason {
     fn from(n: nurbs::NurbsFailure) -> Self {
         Self::Nurbs(n)
+    }
+}
+
+impl From<sweep::SweepFailure> for Reason {
+    fn from(w: sweep::SweepFailure) -> Self {
+        Self::Sweep(w)
     }
 }
 
