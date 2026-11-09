@@ -28,6 +28,7 @@
 //! | [`ErrorKind`], [`SolidError::kind`] | none: solidcore's stable error codes (#2615) |
 //! | [`offset::OffsetFailure`]   | none: the offset subsystem's refusals (#2615)    |
 //! | [`nurbs::NurbsFailure`]     | `NL_*_ERR` numbers, in solidcore's terms         |
+//! | [`defeature::DefeatureFailure`] | none: why a defeature keeps a feature (#3218) |
 //!
 //! NLib routines (`NL_*.cpp`) report failure by returning an error flag and storing an
 //! error number in the process-wide `NL_ERROR` record; solidcore returns
@@ -73,6 +74,7 @@
 //! `sm_status` and the status numbers here move to a comparison-only module (or to
 //! difftest and the FFI), since nothing but the comparison needs them.
 
+pub mod defeature;
 pub mod nurbs;
 pub mod offset;
 
@@ -709,6 +711,8 @@ pub enum Reason {
     Offset(offset::OffsetFailure),
     /// A NURBS routine failed.
     Nurbs(nurbs::NurbsFailure),
+    /// A defeature kept a feature on its base: its patch is not built (#3218).
+    Defeature(defeature::DefeatureFailure),
 }
 
 impl Reason {
@@ -716,7 +720,7 @@ impl Reason {
     #[must_use]
     pub fn entity(&self) -> Option<EntityRef> {
         match self {
-            Self::Failed(_) | Self::Nurbs(_) => None,
+            Self::Failed(_) | Self::Nurbs(_) | Self::Defeature(_) => None,
             Self::Offset(o) => o.entity(),
         }
     }
@@ -728,6 +732,7 @@ impl Reason {
             Self::Failed(_) => SM_ERR,
             Self::Offset(o) => o.comparison_status(),
             Self::Nurbs(_) => nurbs::NurbsFailure::COMPARISON_STATUS,
+            Self::Defeature(d) => d.comparison_status(),
         }
     }
 
@@ -738,6 +743,7 @@ impl Reason {
             Self::Failed(_) => ErrorKind::of_status(status),
             Self::Offset(o) => o.kind(),
             Self::Nurbs(n) => n.kind(),
+            Self::Defeature(d) => d.kind(),
         }
     }
 }
@@ -748,6 +754,7 @@ impl core::fmt::Display for Reason {
             Self::Failed(what) => f.write_str(what),
             Self::Offset(o) => o.fmt(f),
             Self::Nurbs(n) => n.fmt(f),
+            Self::Defeature(d) => d.fmt(f),
         }
     }
 }
@@ -755,6 +762,12 @@ impl core::fmt::Display for Reason {
 impl From<nurbs::NurbsFailure> for Reason {
     fn from(n: nurbs::NurbsFailure) -> Self {
         Self::Nurbs(n)
+    }
+}
+
+impl From<defeature::DefeatureFailure> for Reason {
+    fn from(d: defeature::DefeatureFailure) -> Self {
+        Self::Defeature(d)
     }
 }
 
